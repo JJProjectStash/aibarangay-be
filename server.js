@@ -20,6 +20,7 @@ import announcementsRoutes from "./routes/announcements.js";
 import notificationsRoutes from "./routes/notifications.js";
 import statsRoutes from "./routes/stats.js";
 import newsRoutes from "./routes/news.js";
+import publicRoutes from "./routes/public.js";
 import contentRoutes from "./routes/content.js";
 import adminRoutes from "./routes/admin.js";
 
@@ -51,6 +52,7 @@ app.use("/api/stats", statsRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/content", contentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/public", publicRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
