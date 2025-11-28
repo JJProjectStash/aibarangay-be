@@ -1,7 +1,4 @@
 import express from "express";
-import { spawn } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import cors from "cors";
 import morgan from "morgan";
@@ -10,30 +7,6 @@ import errorHandler from "./middleware/errorHandler.js";
 
 // Load env vars
 dotenv.config();
-
-// Spawn a small independent health server so the health endpoint is always
-// responsive and not tied to DB connections or other middleware.
-try {
-  // Determine the path to the health server script
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const healthScript = path.join(__dirname, "serverHealth.js");
-
-  // Use node executable to run the health server in a separate process so it
-  // won't share the same memory footprint, DB connections, or middleware.
-  // Avoid starting multiple copies if this server is manually started.
-  if (process.env.DISABLE_HEALTH_SERVER_FORK !== "1") {
-    const child = spawn(process.execPath, [healthScript], {
-      env: { ...process.env, HEALTH_FORK: "1" },
-      stdio: ["ignore", "inherit", "inherit"],
-      detached: true,
-    });
-    child.unref();
-  }
-} catch (err) {
-  // Non-blocking: log and continue. The main server will still run.
-  console.error("Failed to start health server:", err);
-}
 
 // Connect to database
 connectDB();
