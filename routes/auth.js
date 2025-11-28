@@ -154,6 +154,22 @@ router.get("/me", protect, async (req, res) => {
 // @access  Private
 router.put("/profile", protect, async (req, res) => {
   try {
+    // If avatar is sent as base64, check size and prevent too large payloads
+    if (req.body.avatar) {
+      try {
+        const base64 = req.body.avatar.includes(",")
+          ? req.body.avatar.split(",")[1]
+          : req.body.avatar;
+        // Calculate size in bytes (approx)
+        const sizeInBytes = Math.ceil((base64.length * 3) / 4);
+        const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
+        if (sizeInBytes > MAX_AVATAR_BYTES) {
+          return res.status(413).json({ message: "Avatar image too large" });
+        }
+      } catch (e) {
+        // If parsing fails, continue — it's not necessarily base64
+      }
+    }
     const user = await User.findById(req.user._id);
 
     if (user) {

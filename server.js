@@ -33,8 +33,10 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase request body limits to allow client avatars and larger payloads (e.g., base64 images)
+// Keep a reasonable limit to prevent abuse. Adjust as needed.
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
 // Logging
 if (process.env.NODE_ENV === "development") {
