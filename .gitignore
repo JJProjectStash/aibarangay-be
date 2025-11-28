@@ -1,0 +1,375 @@
+# =========================
+# Node.js / Backend .gitignore
+# =========================
+
+# -------------------------
+# Dependencies
+# -------------------------
+node_modules/
+
+# -------------------------
+# Environment / secrets
+# -------------------------
+# Ignore actual env files; keep example envs so new contributors can see a template.
+.env
+.env.local
+.env.*
+!.env.example
+!.env.sample
+
+# -------------------------
+# Logs
+# -------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+debug.log*
+
+# -------------------------
+# Runtime / process files
+# -------------------------
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# -------------------------
+# Temporary, cache, build output
+# -------------------------
+tmp/
+temp/
+cache/
+build/
+dist/
+out/
+.cache/
+
+# -------------------------
+# Test coverage and results
+# -------------------------
+coverage/
+.nyc_output/
+test-results/
+reports/
+coverage-report/
+
+# -------------------------
+# TypeScript
+# -------------------------
+*.tsbuildinfo
+
+# -------------------------
+# Editors and IDEs
+# -------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.iml
+.history/
+
+# -------------------------
+# OS generated files
+# -------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -------------------------
+# Editor swap / backup files
+# -------------------------
+*~
+*.swp
+*.swo
+~$*
+
+# -------------------------
+# Package artifacts
+# -------------------------
+*.tgz
+package-lock.json.tgz
+
+# -------------------------
+# Yarn / pnpm
+# -------------------------
+.pnp.cjs
+.pnp.js
+pnpm-store/
+
+# -------------------------
+# Serverless
+# -------------------------
+.serverless/
+
+# -------------------------
+# Docker
+# -------------------------
+docker-compose.override.yml
+.docker/
+
+# -------------------------
+# Secrets / local files
+# -------------------------
+secret-*.json
+local-*.json
+
+# -------------------------
+# Misc
+# -------------------------
+uploads/
+tmp/*
+*.log.*
+
+# -------------------------
+# NOTE: keep these files in version control
+# -------------------------
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# =========================
+# Node.js / Backend .gitignore
+# =========================
+
+# -------------------------
+# Dependencies
+# -------------------------
+node_modules/
+
+# -------------------------
+# Environment / secrets
+# -------------------------
+# Ignore actual env files; keep example envs so new contributors can see a template.
+.env
+.env.local
+.env.*
+!.env.example
+!.env.sample
+
+# -------------------------
+# Logs
+# -------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+debug.log*
+
+# -------------------------
+# Runtime / process files
+# -------------------------
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# -------------------------
+# Temporary, cache, build output
+# -------------------------
+tmp/
+temp/
+cache/
+build/
+dist/
+out/
+.cache/
+
+# -------------------------
+# Test coverage and results
+# -------------------------
+coverage/
+.nyc_output/
+test-results/
+reports/
+coverage-report/
+
+# -------------------------
+# TypeScript
+# -------------------------
+*.tsbuildinfo
+
+# -------------------------
+# Editors and IDEs
+# -------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.iml
+.history/
+
+# -------------------------
+# OS generated files
+# -------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -------------------------
+# Editor swap / backup files
+# -------------------------
+*~
+*.swp
+*.swo
+~$*
+
+# -------------------------
+# Package artifacts
+# -------------------------
+*.tgz
+package-lock.json.tgz
+
+# -------------------------
+# Yarn / pnpm
+# -------------------------
+.pnp.cjs
+.pnp.js
+pnpm-store/
+
+# -------------------------
+# Serverless
+# -------------------------
+.serverless/
+
+# -------------------------
+# Docker
+# -------------------------
+docker-compose.override.yml
+.docker/
+
+# -------------------------
+# Secrets / local files
+# -------------------------
+secret-*.json
+local-*.json
+
+# -------------------------
+# Misc
+# -------------------------
+uploads/
+tmp/*
+*.log.*
+
+# -------------------------
+# NOTE: keep these files in version control
+# -------------------------
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# =========================
+# Node.js / Backend .gitignore
+# =========================
+
+# Dependency directories
+node_modules/
+
+# Environment files (sensitive)
+# Ignore actual environment files but keep example config files.
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary / cache files
+tmp/
+temp/
+cache/
+build/
+dist/
+out/
+.cache/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Test / report output
+test-results/
+reports/
+coverage-report/
+
+# Typescript
+*.tsbuildinfo
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor swap/backup files
+*~
+*.swp
+*.swo
+~$*
+
+# Packages and tarballs
+*.tgz
+
+# Yarn / pnpm
+.pnp.cjs
+.pnp.js
+pnpm-store/
+
+# Serverless
+.serverless/
+
+# Docker overrides
+docker-compose.override.yml
+.docker/
+
+# Optional: When using local secrets for dev/test that shouldn't be committed
+secret-*.json
+
+# npm pack output
+package-lock.json.tgz
+
+# Optional: ignore local coverage or artifacts created by specific tools
+coverage-browser/
+karma.conf.js
+
+# Make sure to keep lockfiles in repo (remove if you want to ignore them!)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Local and temp uploads
+uploads/
+tmp/*
+
+# Misc
+*.log.*
+npm-debug.log
+yarn-error.log
+
+# Allow example envs
+!.env.example
+!.env.sample
