@@ -1,5 +1,6 @@
 import express from "express";
 import Event from "../models/Event.js";
+import User from "../models/User.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
 
@@ -28,6 +29,31 @@ router.get("/", protect, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// @route   GET /api/events/:id/registered
+// @desc    Get registered users for an event
+// @access  Private (Staff/Admin)
+router.get(
+  "/:id/registered",
+  protect,
+  authorize("staff", "admin"),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id).populate(
+        "registeredUsers",
+        "firstName lastName email phoneNumber address avatar role isVerified"
+      );
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      res.json(event.registeredUsers);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 // @route   POST /api/events
 // @desc    Create a new event
