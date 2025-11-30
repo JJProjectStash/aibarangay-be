@@ -1,22 +1,28 @@
 import AuditLog from "../models/AuditLog.js";
 
-const createAuditLog = async (
+export const createAuditLog = async (
   userId,
   action,
   resource,
-  status = "success",
-  ipAddress = null
+  details,
+  status,
+  ipAddress
 ) => {
   try {
-    await AuditLog.create({
+    const auditLog = new AuditLog({
       userId,
       action,
       resource,
+      details,
       status,
       ipAddress,
     });
+    await auditLog.save();
+    return auditLog;
   } catch (error) {
     console.error("Error creating audit log:", error);
+    // Don't throw error to prevent disrupting main operation
+    return null;
   }
 };
 
