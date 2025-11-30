@@ -254,7 +254,12 @@ router.put(
       ),
     body("phoneNumber")
       .optional()
-      .matches(/^(09)\d{9}$/)
+      .custom((value) => {
+        // Allow empty string or null
+        if (!value || value === "") return true;
+        // Otherwise validate format
+        return /^(09)\d{9}$/.test(value);
+      })
       .withMessage("Phone number must start with 09 and be 11 digits"),
     body("address")
       .optional()
@@ -266,6 +271,7 @@ router.put(
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.error("Validation errors:", errors.array());
       return res.status(400).json({
         message: "Validation failed",
         errors: errors
@@ -275,44 +281,6 @@ router.put(
     }
 
     try {
-      // If avatar is sent as base64, check size and prevent too large payloads
-      if (req.body.avatar) {
-        try {
-          const base64 = req.body.avatar.includes(",")
-            ? req.body.avatar.split(",")[1]
-            : req.body.avatar;
-          // Calculate size in bytes (approx)
-          const sizeInBytes = Math.ceil((base64.length * 3) / 4);
-          const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
-          if (sizeInBytes > MAX_AVATAR_BYTES) {
-            return res.status(413).json({
-              message: "Avatar image too large. Maximum size is 4MB.",
-            });
-          }
-        } catch (e) {
-          // If parsing fails, continue — it's not necessarily base64
-          console.warn("Avatar validation warning:", e);
-        }
-      }
-
-      // Validate ID document size if provided
-      if (req.body.idDocumentUrl) {
-        try {
-          const base64 = req.body.idDocumentUrl.includes(",")
-            ? req.body.idDocumentUrl.split(",")[1]
-            : req.body.idDocumentUrl;
-          const sizeInBytes = Math.ceil((base64.length * 3) / 4);
-          const MAX_ID_BYTES = 5 * 1024 * 1024; // 5MB
-          if (sizeInBytes > MAX_ID_BYTES) {
-            return res.status(413).json({
-              message: "ID document too large. Maximum size is 5MB.",
-            });
-          }
-        } catch (e) {
-          console.warn("ID document validation warning:", e);
-        }
-      }
-
       const user = await User.findById(req.user._id);
 
       if (!user) {
@@ -320,16 +288,52 @@ router.put(
       }
 
       // Update only provided fields
-      if (req.body.firstName) user.firstName = req.body.firstName;
-      if (req.body.lastName) user.lastName = req.body.lastName;
+      if (req.body.firstName !== undefined) user.firstName = req.body.firstName;
+      if (req.body.lastName !== undefined) user.lastName = req.body.lastName;
       if (req.body.address !== undefined) user.address = req.body.address;
       if (req.body.phoneNumber !== undefined)
         user.phoneNumber = req.body.phoneNumber;
-      if (req.body.avatar) user.avatar = req.body.avatar;
+
+      // Handle avatar upload with size validation
+      if (req.body.avatar !== undefined) {
+        if (req.body.avatar) {
+          try {
+            const base64 = req.body.avatar.includes(",")
+              ? req.body.avatar.split(",")[1]
+              : req.body.avatar;
+            const sizeInBytes = Math.ceil((base64.length * 3) / 4);
+            const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
+            if (sizeInBytes > MAX_AVATAR_BYTES) {
+              return res.status(413).json({
+                message: "Avatar image too large. Maximum size is 4MB.",
+              });
+            }
+          } catch (e) {
+            console.warn("Avatar validation warning:", e);
+          }
+        }
+        user.avatar = req.body.avatar;
+      }
+
+      // Handle ID document upload with size validation
       if (req.body.idDocumentUrl !== undefined) {
-        user.idDocumentUrl = req.body.idDocumentUrl;
-        // When user uploads ID, log the action
         if (req.body.idDocumentUrl) {
+          try {
+            const base64 = req.body.idDocumentUrl.includes(",")
+              ? req.body.idDocumentUrl.split(",")[1]
+              : req.body.idDocumentUrl;
+            const sizeInBytes = Math.ceil((base64.length * 3) / 4);
+            const MAX_ID_BYTES = 5 * 1024 * 1024; // 5MB
+            if (sizeInBytes > MAX_ID_BYTES) {
+              return res.status(413).json({
+                message: "ID document too large. Maximum size is 5MB.",
+              });
+            }
+          } catch (e) {
+            console.warn("ID document validation warning:", e);
+          }
+
+          // Log the ID upload action
           await createAuditLog(
             user._id,
             "USER_ID_UPLOAD",
@@ -338,6 +342,7 @@ router.put(
             req.ip
           );
         }
+        user.idDocumentUrl = req.body.idDocumentUrl;
       }
 
       const updatedUser = await user.save();
