@@ -53,10 +53,13 @@ router.post(
       .notEmpty()
       .withMessage("Category is required")
       .isIn([
+        "Infrastructure",
         "Sanitation",
-        "Noise Disturbance",
-        "Maintenance",
         "Security",
+        "Noise",
+        "Lighting",
+        "Drainage",
+        "Road",
         "Other",
       ])
       .withMessage("Invalid category"),
