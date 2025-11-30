@@ -108,16 +108,15 @@ router.post(
           address: user.address,
           phoneNumber: user.phoneNumber,
           isVerified: user.isVerified,
+          idDocumentUrl: user.idDocumentUrl,
           token: generateToken(user._id),
         });
       }
     } catch (error) {
       console.error("Registration error:", error);
-      res
-        .status(500)
-        .json({
-          message: "Server error during registration. Please try again.",
-        });
+      res.status(500).json({
+        message: "Server error during registration. Please try again.",
+      });
     }
   }
 );
@@ -187,6 +186,7 @@ router.post(
         address: user.address,
         phoneNumber: user.phoneNumber,
         isVerified: user.isVerified,
+        idDocumentUrl: user.idDocumentUrl,
         token: generateToken(user._id),
       });
     } catch (error) {
@@ -219,6 +219,7 @@ router.get("/me", protect, async (req, res) => {
       address: user.address,
       phoneNumber: user.phoneNumber,
       isVerified: user.isVerified,
+      idDocumentUrl: user.idDocumentUrl,
     });
   } catch (error) {
     console.error("Get user error:", error);
@@ -284,15 +285,31 @@ router.put(
           const sizeInBytes = Math.ceil((base64.length * 3) / 4);
           const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
           if (sizeInBytes > MAX_AVATAR_BYTES) {
-            return res
-              .status(413)
-              .json({
-                message: "Avatar image too large. Maximum size is 4MB.",
-              });
+            return res.status(413).json({
+              message: "Avatar image too large. Maximum size is 4MB.",
+            });
           }
         } catch (e) {
           // If parsing fails, continue — it's not necessarily base64
           console.warn("Avatar validation warning:", e);
+        }
+      }
+
+      // Validate ID document size if provided
+      if (req.body.idDocumentUrl) {
+        try {
+          const base64 = req.body.idDocumentUrl.includes(",")
+            ? req.body.idDocumentUrl.split(",")[1]
+            : req.body.idDocumentUrl;
+          const sizeInBytes = Math.ceil((base64.length * 3) / 4);
+          const MAX_ID_BYTES = 5 * 1024 * 1024; // 5MB
+          if (sizeInBytes > MAX_ID_BYTES) {
+            return res.status(413).json({
+              message: "ID document too large. Maximum size is 5MB.",
+            });
+          }
+        } catch (e) {
+          console.warn("ID document validation warning:", e);
         }
       }
 
@@ -309,6 +326,19 @@ router.put(
       if (req.body.phoneNumber !== undefined)
         user.phoneNumber = req.body.phoneNumber;
       if (req.body.avatar) user.avatar = req.body.avatar;
+      if (req.body.idDocumentUrl !== undefined) {
+        user.idDocumentUrl = req.body.idDocumentUrl;
+        // When user uploads ID, log the action
+        if (req.body.idDocumentUrl) {
+          await createAuditLog(
+            user._id,
+            "USER_ID_UPLOAD",
+            "Profile",
+            "success",
+            req.ip
+          );
+        }
+      }
 
       const updatedUser = await user.save();
 
@@ -330,14 +360,13 @@ router.put(
         address: updatedUser.address,
         phoneNumber: updatedUser.phoneNumber,
         isVerified: updatedUser.isVerified,
+        idDocumentUrl: updatedUser.idDocumentUrl,
       });
     } catch (error) {
       console.error("Profile update error:", error);
-      res
-        .status(500)
-        .json({
-          message: "Server error during profile update. Please try again.",
-        });
+      res.status(500).json({
+        message: "Server error during profile update. Please try again.",
+      });
     }
   }
 );

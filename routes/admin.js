@@ -1,4 +1,5 @@
 import express from "express";
+import { body, validationResult } from "express-validator";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
 import SiteSettings from "../models/SiteSettings.js";
@@ -20,6 +21,93 @@ router.get("/users", protect, authorize("admin"), async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// @route   PUT /api/admin/users/:id
+// @desc    Update user (role, verification status)
+// @access  Private (Admin)
+router.put(
+  "/users/:id",
+  protect,
+  authorize("admin"),
+  [
+    body("role")
+      .optional()
+      .isIn(["resident", "staff", "admin"])
+      .withMessage("Invalid role"),
+    body("isVerified")
+      .optional()
+      .isBoolean()
+      .withMessage("isVerified must be a boolean"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: errors
+          .array()
+          .map((err) => ({ field: err.path, message: err.msg })),
+      });
+    }
+
+    try {
+      const user = await User.findById(req.params.id);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Prevent modifying self if changing role
+      if (req.body.role && user._id.toString() === req.user._id.toString()) {
+        return res.status(400).json({ message: "Cannot change your own role" });
+      }
+
+      // Update fields
+      if (req.body.role !== undefined) user.role = req.body.role;
+      if (req.body.isVerified !== undefined) {
+        const wasVerified = user.isVerified;
+        user.isVerified = req.body.isVerified;
+
+        // Log verification status change
+        if (wasVerified !== req.body.isVerified) {
+          await createAuditLog(
+            req.user._id,
+            req.body.isVerified ? "USER_VERIFIED" : "USER_UNVERIFIED",
+            `User #${user._id}`,
+            "success",
+            req.ip
+          );
+        }
+      }
+
+      const updatedUser = await user.save();
+
+      await createAuditLog(
+        req.user._id,
+        "UPDATE_USER",
+        `User #${user._id}`,
+        "success",
+        req.ip
+      );
+
+      res.json({
+        _id: updatedUser._id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: updatedUser.avatar,
+        address: updatedUser.address,
+        phoneNumber: updatedUser.phoneNumber,
+        isVerified: updatedUser.isVerified,
+        idDocumentUrl: updatedUser.idDocumentUrl,
+      });
+    } catch (error) {
+      console.error("Update user error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 // @route   DELETE /api/admin/users/:id
 // @desc    Delete a user
