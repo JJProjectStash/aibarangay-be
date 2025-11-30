@@ -36,41 +36,47 @@ router.post(
   "/",
   protect,
   [
+    body("requestType")
+      .notEmpty()
+      .withMessage("Request type is required")
+      .isIn(["Equipment", "Facility"])
+      .withMessage("Request type must be either Equipment or Facility"),
     body("itemName")
       .notEmpty()
-      .withMessage("Item name is required")
+      .withMessage("Item/Facility name is required")
       .trim()
       .isLength({ min: 2, max: 100 })
-      .withMessage("Item name must be between 2 and 100 characters"),
+      .withMessage("Name must be between 2 and 100 characters"),
     body("itemType")
       .notEmpty()
-      .withMessage("Item type is required")
-      .isIn(["Equipment", "Facility"])
-      .withMessage("Item type must be either Equipment or Facility"),
+      .withMessage("Type is required")
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Type must be between 2 and 100 characters"),
     body("borrowDate")
       .notEmpty()
-      .withMessage("Borrow date is required")
+      .withMessage("Start date is required")
       .isISO8601()
-      .withMessage("Invalid borrow date format")
+      .withMessage("Invalid start date format")
       .custom((value) => {
         const borrowDate = new Date(value);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (borrowDate < today) {
-          throw new Error("Borrow date cannot be in the past");
+          throw new Error("Start date cannot be in the past");
         }
         return true;
       }),
     body("expectedReturnDate")
       .notEmpty()
-      .withMessage("Expected return date is required")
+      .withMessage("End date is required")
       .isISO8601()
-      .withMessage("Invalid return date format")
+      .withMessage("Invalid end date format")
       .custom((value, { req }) => {
         const returnDate = new Date(value);
         const borrowDate = new Date(req.body.borrowDate);
         if (returnDate < borrowDate) {
-          throw new Error("Return date must be on or after borrow date");
+          throw new Error("End date must be on or after start date");
         }
         return true;
       }),
@@ -80,6 +86,15 @@ router.post(
       .trim()
       .isLength({ min: 10, max: 500 })
       .withMessage("Purpose must be between 10 and 500 characters"),
+    body("timeSlot")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("Time slot must not exceed 100 characters"),
+    body("numberOfPeople")
+      .optional()
+      .isInt({ min: 1, max: 10000 })
+      .withMessage("Number of people must be between 1 and 10000"),
     body("notes")
       .optional()
       .trim()
@@ -99,15 +114,28 @@ router.post(
     }
 
     try {
-      const service = await ServiceRequest.create({
+      const serviceData = {
         userId: req.user._id,
+        requestType: req.body.requestType,
         itemName: req.body.itemName,
         itemType: req.body.itemType,
         borrowDate: req.body.borrowDate,
         expectedReturnDate: req.body.expectedReturnDate,
         purpose: req.body.purpose,
         notes: req.body.notes,
-      });
+      };
+
+      // Add facility-specific fields if request type is Facility
+      if (req.body.requestType === "Facility") {
+        if (req.body.timeSlot) {
+          serviceData.timeSlot = req.body.timeSlot;
+        }
+        if (req.body.numberOfPeople) {
+          serviceData.numberOfPeople = req.body.numberOfPeople;
+        }
+      }
+
+      const service = await ServiceRequest.create(serviceData);
 
       const populatedService = await ServiceRequest.findById(
         service._id
@@ -171,11 +199,9 @@ router.put(
 
       if (req.body.status === "rejected") {
         if (!req.body.note) {
-          return res
-            .status(400)
-            .json({
-              message: "Rejection reason is required when rejecting a request",
-            });
+          return res.status(400).json({
+            message: "Rejection reason is required when rejecting a request",
+          });
         }
         service.rejectionReason = req.body.note;
       } else if (req.body.status === "approved") {

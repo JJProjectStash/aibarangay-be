@@ -7,22 +7,37 @@ const serviceRequestSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    requestType: {
+      type: String,
+      enum: ["Equipment", "Facility"],
+      required: [true, "Request type is required"],
+      default: "Equipment",
+    },
     itemName: {
       type: String,
-      required: [true, "Item name is required"],
+      required: [true, "Item/Facility name is required"],
       trim: true,
     },
     itemType: {
       type: String,
-      required: [true, "Item type is required"],
+      required: [true, "Item/Facility type is required"],
     },
     borrowDate: {
       type: Date,
-      required: [true, "Borrow date is required"],
+      required: [true, "Start date is required"],
     },
     expectedReturnDate: {
       type: Date,
-      required: [true, "Expected return date is required"],
+      required: [true, "End date is required"],
+    },
+    // Facility-specific fields
+    timeSlot: {
+      type: String,
+      trim: true,
+    },
+    numberOfPeople: {
+      type: Number,
+      min: 1,
     },
     status: {
       type: String,
