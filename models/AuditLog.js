@@ -15,6 +15,10 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: [true, "Resource is required"],
     },
+    details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     status: {
       type: String,
       enum: ["success", "failure"],

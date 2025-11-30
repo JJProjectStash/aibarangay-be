@@ -4,16 +4,16 @@ export const createAuditLog = async (
   userId,
   action,
   resource,
-  details,
-  status,
-  ipAddress
+  details = {},
+  status = "success",
+  ipAddress = null
 ) => {
   try {
     const auditLog = new AuditLog({
       userId,
       action,
       resource,
-      details,
+      details: typeof details === "string" ? { message: details } : details,
       status,
       ipAddress,
     });

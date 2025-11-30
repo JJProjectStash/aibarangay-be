@@ -94,6 +94,7 @@ router.post(
           user._id,
           "USER_REGISTER",
           "Auth System",
+          { email: user.email },
           "success",
           req.ip
         );
@@ -131,6 +132,7 @@ router.post(
       .isEmail()
       .withMessage("Please provide a valid email")
       .normalizeEmail(),
+    body("password").notEmpty().withMessage("Password is required"),
   ],
   async (req, res) => {
     // Validate request
@@ -155,13 +157,14 @@ router.post(
       }
 
       // Check password
-      const isMatch = password ? await user.matchPassword(password) : true; // Allow passwordless login for demo
+      const isMatch = await user.matchPassword(password);
 
       if (!isMatch) {
         await createAuditLog(
           user._id,
           "USER_LOGIN",
           "Auth System",
+          { email: user.email, reason: "Invalid password" },
           "failure",
           req.ip
         );
@@ -172,6 +175,7 @@ router.post(
         user._id,
         "USER_LOGIN",
         "Auth System",
+        { email: user.email },
         "success",
         req.ip
       );
@@ -338,6 +342,7 @@ router.put(
             user._id,
             "USER_ID_UPLOAD",
             "Profile",
+            { hasDocument: true },
             "success",
             req.ip
           );
@@ -351,6 +356,11 @@ router.put(
         user._id,
         "USER_PROFILE_UPDATE",
         "Profile",
+        {
+          updatedFields: Object.keys(req.body).filter(
+            (k) => req.body[k] !== undefined
+          ),
+        },
         "success",
         req.ip
       );
