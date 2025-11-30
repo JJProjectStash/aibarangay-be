@@ -1,6 +1,7 @@
 import express from "express";
 import { body, validationResult } from "express-validator";
 import ServiceRequest from "../models/ServiceRequest.js";
+import Notification from "../models/Notification.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
 
@@ -195,6 +196,7 @@ router.put(
         return res.status(404).json({ message: "Service request not found" });
       }
 
+      const oldStatus = service.status;
       service.status = req.body.status;
 
       if (req.body.status === "rejected") {
@@ -216,6 +218,33 @@ router.put(
         "success",
         req.ip
       );
+
+      // Create notification for the service request owner
+      if (service.userId.toString() !== req.user._id.toString()) {
+        const statusMessages = {
+          pending: "Your service request is pending review",
+          approved: "Your service request has been approved",
+          borrowed: "Your service request is now active",
+          returned: "Your service request has been completed",
+          rejected: "Your service request has been rejected",
+        };
+
+        await Notification.create({
+          userId: service.userId,
+          title: "Service Request Status Updated",
+          message: `Your ${service.requestType.toLowerCase()} request "${
+            service.itemName
+          }" status changed from ${oldStatus} to ${req.body.status}. ${
+            req.body.note ? req.body.note : statusMessages[req.body.status]
+          }`,
+          type:
+            req.body.status === "approved" || req.body.status === "returned"
+              ? "success"
+              : req.body.status === "rejected"
+              ? "error"
+              : "info",
+        });
+      }
 
       res.json(service);
     } catch (error) {

@@ -1,6 +1,7 @@
 import express from "express";
 import { body, validationResult } from "express-validator";
 import Complaint from "../models/Complaint.js";
+import Notification from "../models/Notification.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
 
@@ -152,6 +153,7 @@ router.put(
         return res.status(404).json({ message: "Complaint not found" });
       }
 
+      const oldStatus = complaint.status;
       complaint.status = req.body.status;
       complaint.history.push({
         action: `Status Updated to ${req.body.status}`,
@@ -168,6 +170,32 @@ router.put(
         "success",
         req.ip
       );
+
+      // Create notification for the complaint owner
+      if (complaint.userId.toString() !== req.user._id.toString()) {
+        const statusMessages = {
+          pending: "Your complaint is pending review",
+          "in-progress": "Your complaint is now being addressed",
+          resolved: "Your complaint has been resolved",
+          closed: "Your complaint has been closed",
+        };
+
+        await Notification.create({
+          userId: complaint.userId,
+          title: "Complaint Status Updated",
+          message: `Your complaint "${
+            complaint.title
+          }" status changed from ${oldStatus} to ${req.body.status}. ${
+            req.body.note ? req.body.note : statusMessages[req.body.status]
+          }`,
+          type:
+            req.body.status === "resolved"
+              ? "success"
+              : req.body.status === "closed"
+              ? "info"
+              : "warning",
+        });
+      }
 
       res.json(complaint);
     } catch (error) {
