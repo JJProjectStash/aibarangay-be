@@ -61,6 +61,92 @@ router.get("/", protect, async (req, res) => {
   }
 });
 
+// @route   GET /api/stats/analytics
+// @desc    Get analytics data for charts (Admin/Staff only)
+// @access  Private (Admin/Staff)
+router.get(
+  "/analytics",
+  protect,
+  authorize("admin", "staff"),
+  async (req, res) => {
+    try {
+      // Get complaint trend for the last 7 days
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const complaintTrend = [];
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
+
+        const count = await Complaint.countDocuments({
+          createdAt: {
+            $gte: date,
+            $lt: nextDate,
+          },
+        });
+
+        complaintTrend.push({
+          name: dayNames[date.getDay()],
+          count,
+        });
+      }
+
+      // Get complaint categories distribution
+      const categories = await Complaint.aggregate([
+        {
+          $group: {
+            _id: "$category",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            name: "$_id",
+            value: "$count",
+            _id: 0,
+          },
+        },
+      ]);
+
+      const categoryData =
+        categories.length > 0 ? categories : [{ name: "No Data", value: 1 }];
+
+      // Get recent activity
+      const recentComplaints = await Complaint.find()
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .populate("userId", "firstName lastName");
+
+      const recentActivity = recentComplaints.map((complaint) => {
+        const timeAgo = Math.floor(
+          (Date.now() - new Date(complaint.createdAt).getTime()) / 60000
+        );
+        return {
+          message: `New complaint: ${complaint.title}`,
+          time:
+            timeAgo < 60
+              ? `${timeAgo} mins ago`
+              : `${Math.floor(timeAgo / 60)} hours ago`,
+        };
+      });
+
+      res.json({
+        complaintTrend,
+        categoryData,
+        recentActivity,
+      });
+    } catch (error) {
+      console.error("Analytics error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
 // @route   GET /api/stats/report
 // @desc    Generate PDF report
 // @access  Private (Admin/Staff)
