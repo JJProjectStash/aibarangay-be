@@ -1,4 +1,5 @@
 import express from "express";
+import { body, validationResult } from "express-validator";
 import ServiceRequest from "../models/ServiceRequest.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
@@ -23,42 +24,110 @@ router.get("/", protect, async (req, res) => {
 
     res.json(services);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get services error:", error);
+    res.status(500).json({ message: "Server error. Please try again." });
   }
 });
 
 // @route   POST /api/services
 // @desc    Create a new service request
 // @access  Private
-router.post("/", protect, async (req, res) => {
-  try {
-    const service = await ServiceRequest.create({
-      userId: req.user._id,
-      itemName: req.body.itemName,
-      itemType: req.body.itemType,
-      borrowDate: req.body.borrowDate,
-      expectedReturnDate: req.body.expectedReturnDate,
-      purpose: req.body.purpose,
-      notes: req.body.notes,
-    });
+router.post(
+  "/",
+  protect,
+  [
+    body("itemName")
+      .notEmpty()
+      .withMessage("Item name is required")
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Item name must be between 2 and 100 characters"),
+    body("itemType")
+      .notEmpty()
+      .withMessage("Item type is required")
+      .isIn(["Equipment", "Facility"])
+      .withMessage("Item type must be either Equipment or Facility"),
+    body("borrowDate")
+      .notEmpty()
+      .withMessage("Borrow date is required")
+      .isISO8601()
+      .withMessage("Invalid borrow date format")
+      .custom((value) => {
+        const borrowDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (borrowDate < today) {
+          throw new Error("Borrow date cannot be in the past");
+        }
+        return true;
+      }),
+    body("expectedReturnDate")
+      .notEmpty()
+      .withMessage("Expected return date is required")
+      .isISO8601()
+      .withMessage("Invalid return date format")
+      .custom((value, { req }) => {
+        const returnDate = new Date(value);
+        const borrowDate = new Date(req.body.borrowDate);
+        if (returnDate < borrowDate) {
+          throw new Error("Return date must be on or after borrow date");
+        }
+        return true;
+      }),
+    body("purpose")
+      .notEmpty()
+      .withMessage("Purpose is required")
+      .trim()
+      .isLength({ min: 10, max: 500 })
+      .withMessage("Purpose must be between 10 and 500 characters"),
+    body("notes")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("Notes must not exceed 500 characters"),
+  ],
+  async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: errors
+          .array()
+          .map((err) => ({ field: err.path, message: err.msg })),
+      });
+    }
 
-    const populatedService = await ServiceRequest.findById(
-      service._id
-    ).populate("userId", "firstName lastName email avatar role");
+    try {
+      const service = await ServiceRequest.create({
+        userId: req.user._id,
+        itemName: req.body.itemName,
+        itemType: req.body.itemType,
+        borrowDate: req.body.borrowDate,
+        expectedReturnDate: req.body.expectedReturnDate,
+        purpose: req.body.purpose,
+        notes: req.body.notes,
+      });
 
-    await createAuditLog(
-      req.user._id,
-      "CREATE_SERVICE_REQUEST",
-      `Service #${service._id}`,
-      "success",
-      req.ip
-    );
+      const populatedService = await ServiceRequest.findById(
+        service._id
+      ).populate("userId", "firstName lastName email avatar role");
 
-    res.status(201).json(populatedService);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+      await createAuditLog(
+        req.user._id,
+        "CREATE_SERVICE_REQUEST",
+        `Service #${service._id}`,
+        "success",
+        req.ip
+      );
+
+      res.status(201).json(populatedService);
+    } catch (error) {
+      console.error("Create service error:", error);
+      res.status(500).json({ message: "Server error. Please try again." });
+    }
   }
-});
+);
 
 // @route   PUT /api/services/:id/status
 // @desc    Update service request status
@@ -67,7 +136,30 @@ router.put(
   "/:id/status",
   protect,
   authorize("staff", "admin"),
+  [
+    body("status")
+      .notEmpty()
+      .withMessage("Status is required")
+      .isIn(["pending", "approved", "borrowed", "returned", "rejected"])
+      .withMessage("Invalid status"),
+    body("note")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("Note must not exceed 500 characters"),
+  ],
   async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: errors
+          .array()
+          .map((err) => ({ field: err.path, message: err.msg })),
+      });
+    }
+
     try {
       const service = await ServiceRequest.findById(req.params.id);
 
@@ -78,6 +170,13 @@ router.put(
       service.status = req.body.status;
 
       if (req.body.status === "rejected") {
+        if (!req.body.note) {
+          return res
+            .status(400)
+            .json({
+              message: "Rejection reason is required when rejecting a request",
+            });
+        }
         service.rejectionReason = req.body.note;
       } else if (req.body.status === "approved") {
         service.approvalNote = req.body.note;
@@ -94,7 +193,8 @@ router.put(
 
       res.json(service);
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error("Update service status error:", error);
+      res.status(500).json({ message: "Server error. Please try again." });
     }
   }
 );
