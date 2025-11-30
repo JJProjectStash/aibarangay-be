@@ -4,6 +4,7 @@ import ServiceRequest from "../models/ServiceRequest.js";
 import Notification from "../models/Notification.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
+import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 
 const router = express.Router();
 
@@ -148,6 +149,13 @@ router.post(
         `Service #${service._id}`,
         "success",
         req.ip
+      );
+
+      // Notify all admins and staff about new service request
+      await notifyAdminsAndStaff(
+        "New Service Request",
+        `${req.user.firstName} ${req.user.lastName} submitted a new ${req.body.requestType} request: "${req.body.itemName}"`,
+        "info"
       );
 
       res.status(201).json(populatedService);

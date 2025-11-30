@@ -1,7 +1,8 @@
 import express from "express";
 import Announcement from "../models/Announcement.js";
 import { protect, authorize } from "../middleware/auth.js";
-import { createAuditLog } from "../utils/createAuditLog.js";
+import createAuditLog from "../utils/createAuditLog.js";
+import { createNotificationForRole } from "../utils/createNotification.js";
 
 const router = express.Router();
 
@@ -79,11 +80,18 @@ router.post("/", protect, authorize("staff", "admin"), async (req, res) => {
     // Create audit log
     await createAuditLog(
       req.user._id,
-      "create",
-      "announcement",
-      `Created announcement: ${title}`,
+      "CREATE_ANNOUNCEMENT",
+      `Announcement #${announcement._id}`,
       "success",
       req.ip
+    );
+
+    // Notify all residents about new announcement
+    await createNotificationForRole(
+      "resident",
+      "New Announcement",
+      `${announcement.title}`,
+      priority === "urgent" || priority === "high" ? "warning" : "info"
     );
 
     res.status(201).json(announcement);
@@ -116,11 +124,8 @@ router.put(
       // Create audit log
       await createAuditLog(
         req.user._id,
-        "update",
-        "announcement",
-        `${announcement.isPinned ? "Pinned" : "Unpinned"} announcement: ${
-          announcement.title
-        }`,
+        "UPDATE_ANNOUNCEMENT",
+        `Announcement #${announcement._id}`,
         "success",
         req.ip
       );
@@ -148,9 +153,8 @@ router.delete("/:id", protect, authorize("admin"), async (req, res) => {
     // Create audit log
     await createAuditLog(
       req.user._id,
-      "delete",
-      "announcement",
-      `Deleted announcement: ${announcement.title}`,
+      "DELETE_ANNOUNCEMENT",
+      `Announcement #${announcement._id}`,
       "success",
       req.ip
     );

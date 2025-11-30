@@ -4,6 +4,7 @@ import Complaint from "../models/Complaint.js";
 import Notification from "../models/Notification.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
+import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 
 const router = express.Router();
 
@@ -105,6 +106,13 @@ router.post(
         `Complaint #${complaint._id}`,
         "success",
         req.ip
+      );
+
+      // Notify all admins and staff about new complaint
+      await notifyAdminsAndStaff(
+        "New Complaint Submitted",
+        `${req.user.firstName} ${req.user.lastName} submitted a new ${req.body.category} complaint: "${req.body.title}"`,
+        "info"
       );
 
       res.status(201).json(populatedComplaint);

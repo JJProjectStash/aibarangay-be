@@ -3,6 +3,7 @@ import Event from "../models/Event.js";
 import User from "../models/User.js";
 import { protect, authorize } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
+import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 
 const router = express.Router();
 
@@ -142,6 +143,13 @@ router.post("/:id/register", protect, async (req, res) => {
     event.registeredUsers.push(req.user._id);
     event.currentAttendees += 1;
     await event.save();
+
+    // Notify admins and staff about new event registration
+    await notifyAdminsAndStaff(
+      "New Event Registration",
+      `${req.user.firstName} ${req.user.lastName} registered for the event: "${event.title}"`,
+      "info"
+    );
 
     res.json({ message: "Successfully registered for event" });
   } catch (error) {
