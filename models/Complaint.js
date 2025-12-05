@@ -96,6 +96,13 @@ const complaintSchema = new mongoose.Schema(
   }
 );
 
+// Add indexes for frequent queries
+complaintSchema.index({ userId: 1 });
+complaintSchema.index({ status: 1 });
+complaintSchema.index({ createdAt: -1 });
+complaintSchema.index({ category: 1, status: 1 });
+complaintSchema.index({ assignedTo: 1 });
+
 // Add initial history entry on creation
 complaintSchema.pre("save", function (next) {
   if (this.isNew) {

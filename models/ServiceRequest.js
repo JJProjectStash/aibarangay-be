@@ -57,6 +57,12 @@ const serviceRequestSchema = new mongoose.Schema(
   }
 );
 
+// Add indexes for frequent queries
+serviceRequestSchema.index({ userId: 1 });
+serviceRequestSchema.index({ status: 1 });
+serviceRequestSchema.index({ createdAt: -1 });
+serviceRequestSchema.index({ requestType: 1, status: 1 });
+
 const ServiceRequest = mongoose.model("ServiceRequest", serviceRequestSchema);
 
 export default ServiceRequest;

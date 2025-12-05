@@ -1,6 +1,13 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+// Lockout configuration
+const LOCKOUT_CONFIG = {
+  maxAttempts: parseInt(process.env.LOGIN_MAX_ATTEMPTS) || 5,
+  lockoutDuration:
+    parseInt(process.env.LOGIN_LOCKOUT_DURATION_MS) || 5 * 60 * 1000, // 5 minutes
+};
+
 const userSchema = new mongoose.Schema(
   {
     firstName: {
@@ -56,6 +63,19 @@ const userSchema = new mongoose.Schema(
     idDocumentUrl: {
       type: String,
     },
+    // Login attempt tracking fields
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockoutUntil: {
+      type: Date,
+      default: null,
+    },
+    lastFailedLogin: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -75,6 +95,42 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Method to check if user is locked out
+userSchema.methods.isLockedOut = function () {
+  return this.lockoutUntil && this.lockoutUntil > Date.now();
+};
+
+// Method to get remaining lockout time in seconds
+userSchema.methods.getRemainingLockoutTime = function () {
+  if (!this.isLockedOut()) return 0;
+  return Math.ceil((this.lockoutUntil - Date.now()) / 1000);
+};
+
+// Method to increment login attempts
+userSchema.methods.incrementLoginAttempts = async function () {
+  this.loginAttempts += 1;
+  this.lastFailedLogin = new Date();
+
+  if (this.loginAttempts >= LOCKOUT_CONFIG.maxAttempts) {
+    this.lockoutUntil = new Date(Date.now() + LOCKOUT_CONFIG.lockoutDuration);
+  }
+
+  await this.save();
+};
+
+// Method to reset login attempts on successful login
+userSchema.methods.resetLoginAttempts = async function () {
+  if (this.loginAttempts > 0 || this.lockoutUntil) {
+    this.loginAttempts = 0;
+    this.lockoutUntil = null;
+    this.lastFailedLogin = null;
+    await this.save();
+  }
+};
+
+// Add index for lockout queries (email index already created by unique: true)
+userSchema.index({ lockoutUntil: 1 });
 
 const User = mongoose.model("User", userSchema);
 
