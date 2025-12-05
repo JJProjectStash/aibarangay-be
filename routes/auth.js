@@ -111,6 +111,7 @@ router.post(
           isVerified: user.isVerified,
           idDocumentUrl: user.idDocumentUrl,
           token: generateToken(user._id),
+          expiresIn: 86400, // 24 hours in seconds
         });
       }
     } catch (error) {
@@ -248,6 +249,7 @@ router.post(
         isVerified: user.isVerified,
         idDocumentUrl: user.idDocumentUrl,
         token: generateToken(user._id),
+        expiresIn: 86400, // 24 hours in seconds
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -283,6 +285,37 @@ router.get("/me", protect, async (req, res) => {
     });
   } catch (error) {
     console.error("Get user error:", error);
+    res.status(500).json({ message: "Server error. Please try again." });
+  }
+});
+
+// @route   POST /api/auth/refresh
+// @desc    Refresh JWT token
+// @access  Private
+router.post("/refresh", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar,
+      address: user.address,
+      phoneNumber: user.phoneNumber,
+      isVerified: user.isVerified,
+      idDocumentUrl: user.idDocumentUrl,
+      token: generateToken(user._id),
+      expiresIn: 86400, // 24 hours in seconds
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
     res.status(500).json({ message: "Server error. Please try again." });
   }
 });

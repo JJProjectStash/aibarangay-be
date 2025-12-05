@@ -24,7 +24,13 @@ export const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      console.error(error);
+      // Handle token expiration separately for frontend handling
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({ 
+          message: "Token expired", 
+          code: "TOKEN_EXPIRED" 
+        });
+      }
       return res.status(401).json({ message: "Not authorized, token failed" });
     }
   }
