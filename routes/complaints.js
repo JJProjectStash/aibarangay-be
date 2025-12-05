@@ -9,7 +9,7 @@ import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 const router = express.Router();
 
 // @route   GET /api/complaints
-// @desc    Get all complaints (filtered by role)
+// @desc    Get all complaints (filtered by role) with optional pagination
 // @access  Private
 router.get("/", protect, async (req, res) => {
   try {
@@ -20,6 +20,69 @@ router.get("/", protect, async (req, res) => {
       query.userId = req.user._id;
     }
 
+    // Status filter
+    if (req.query.status && req.query.status !== "all") {
+      query.status = req.query.status;
+    }
+
+    // Category filter
+    if (req.query.category && req.query.category !== "all") {
+      query.category = req.query.category;
+    }
+
+    // Priority filter
+    if (req.query.priority && req.query.priority !== "all") {
+      query.priority = req.query.priority;
+    }
+
+    // Search filter (title or description)
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, "i");
+      query.$or = [{ title: searchRegex }, { description: searchRegex }];
+    }
+
+    // Date range filter
+    if (req.query.startDate || req.query.endDate) {
+      query.createdAt = {};
+      if (req.query.startDate) {
+        query.createdAt.$gte = new Date(req.query.startDate);
+      }
+      if (req.query.endDate) {
+        query.createdAt.$lte = new Date(req.query.endDate);
+      }
+    }
+
+    // Check if pagination is requested
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+
+    if (page > 0 && limit > 0) {
+      // Server-side pagination
+      const skip = (page - 1) * limit;
+      const totalItems = await Complaint.countDocuments(query);
+      const totalPages = Math.ceil(totalItems / limit);
+
+      const complaints = await Complaint.find(query)
+        .populate("userId", "firstName lastName email avatar role")
+        .populate("assignedTo", "firstName lastName")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      return res.json({
+        data: complaints,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          pageSize: limit,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      });
+    }
+
+    // No pagination - return all results (backward compatible)
     const complaints = await Complaint.find(query)
       .populate("userId", "firstName lastName email avatar role")
       .populate("assignedTo", "firstName lastName")
@@ -213,6 +276,122 @@ router.put(
   }
 );
 
+// @route   POST /api/complaints/bulk-status
+// @desc    Bulk update complaint statuses
+// @access  Private (Staff/Admin)
+router.post(
+  "/bulk-status",
+  protect,
+  authorize("staff", "admin"),
+  [
+    body("ids")
+      .isArray({ min: 1 })
+      .withMessage("At least one complaint ID is required"),
+    body("ids.*").isMongoId().withMessage("Invalid complaint ID format"),
+    body("status")
+      .notEmpty()
+      .withMessage("Status is required")
+      .isIn(["pending", "in-progress", "resolved", "closed"])
+      .withMessage("Invalid status"),
+    body("note")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("Note must not exceed 500 characters"),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: errors
+          .array()
+          .map((err) => ({ field: err.path, message: err.msg })),
+      });
+    }
+
+    const { ids, status, note } = req.body;
+    const results = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    try {
+      for (const id of ids) {
+        try {
+          const complaint = await Complaint.findById(id);
+
+          if (!complaint) {
+            results.push({ id, success: false, error: "Complaint not found" });
+            failedCount++;
+            continue;
+          }
+
+          const oldStatus = complaint.status;
+          complaint.status = status;
+          complaint.history.push({
+            action: `Status Updated to ${status}`,
+            by: `${req.user.firstName} ${req.user.lastName}`,
+            timestamp: new Date(),
+            note: note || `Bulk status update`,
+          });
+
+          await complaint.save();
+
+          // Create notification for the complaint owner
+          if (complaint.userId.toString() !== req.user._id.toString()) {
+            const statusMessages = {
+              pending: "Your complaint is pending review",
+              "in-progress": "Your complaint is now being addressed",
+              resolved: "Your complaint has been resolved",
+              closed: "Your complaint has been closed",
+            };
+
+            await Notification.create({
+              userId: complaint.userId,
+              title: "Complaint Status Updated",
+              message: `Your complaint "${
+                complaint.title
+              }" status changed from ${oldStatus} to ${status}. ${
+                note ? note : statusMessages[status]
+              }`,
+              type:
+                status === "resolved"
+                  ? "success"
+                  : status === "closed"
+                  ? "info"
+                  : "warning",
+            });
+          }
+
+          results.push({ id, success: true });
+          successCount++;
+        } catch (err) {
+          results.push({ id, success: false, error: err.message });
+          failedCount++;
+        }
+      }
+
+      await createAuditLog(
+        req.user._id,
+        "BULK_UPDATE_COMPLAINT_STATUS",
+        `Updated ${successCount} complaints to ${status}`,
+        successCount > 0 ? "success" : "failed",
+        req.ip
+      );
+
+      res.json({
+        success: failedCount === 0,
+        updated: successCount,
+        failed: failedCount,
+        results,
+      });
+    } catch (error) {
+      console.error("Bulk update complaints error:", error);
+      res.status(500).json({ message: "Server error. Please try again." });
+    }
+  }
+);
+
 // @route   POST /api/complaints/:id/comments
 // @desc    Add comment to complaint
 // @access  Private
@@ -270,6 +449,104 @@ router.post(
       res.status(201).json(comment);
     } catch (error) {
       console.error("Add comment error:", error);
+      res.status(500).json({ message: "Server error. Please try again." });
+    }
+  }
+);
+
+// @route   GET /api/complaints/export
+// @desc    Export complaints data as CSV
+// @access  Private (Staff/Admin)
+router.get(
+  "/export",
+  protect,
+  authorize("staff", "admin"),
+  async (req, res) => {
+    try {
+      let query = {};
+
+      // Status filter
+      if (req.query.status && req.query.status !== "all") {
+        query.status = req.query.status;
+      }
+
+      // Category filter
+      if (req.query.category && req.query.category !== "all") {
+        query.category = req.query.category;
+      }
+
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        query.createdAt = {};
+        if (req.query.startDate) {
+          query.createdAt.$gte = new Date(req.query.startDate);
+        }
+        if (req.query.endDate) {
+          query.createdAt.$lte = new Date(req.query.endDate);
+        }
+      }
+
+      // Specific IDs filter
+      if (req.query.ids) {
+        const ids = req.query.ids.split(",");
+        query._id = { $in: ids };
+      }
+
+      const complaints = await Complaint.find(query)
+        .populate("userId", "firstName lastName email")
+        .populate("assignedTo", "firstName lastName")
+        .sort({ createdAt: -1 });
+
+      const format = req.query.format || "csv";
+
+      if (format === "csv") {
+        // Generate CSV
+        const headers = [
+          "ID",
+          "Title",
+          "Description",
+          "Category",
+          "Status",
+          "Priority",
+          "Submitted By",
+          "Email",
+          "Assigned To",
+          "Created At",
+          "Updated At",
+        ];
+
+        const rows = complaints.map((c) => [
+          c._id.toString(),
+          `"${(c.title || "").replace(/"/g, '""')}"`,
+          `"${(c.description || "").replace(/"/g, '""').replace(/\n/g, " ")}"`,
+          c.category || "",
+          c.status || "",
+          c.priority || "",
+          c.userId ? `${c.userId.firstName} ${c.userId.lastName}` : "",
+          c.userId?.email || "",
+          c.assignedTo
+            ? `${c.assignedTo.firstName} ${c.assignedTo.lastName}`
+            : "",
+          c.createdAt ? new Date(c.createdAt).toISOString() : "",
+          c.updatedAt ? new Date(c.updatedAt).toISOString() : "",
+        ]);
+
+        const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+          "\n"
+        );
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="complaints-export-${Date.now()}.csv"`
+        );
+        return res.send(csv);
+      }
+
+      // JSON format (for PDF generation on frontend)
+      res.json(complaints);
+    } catch (error) {
+      console.error("Export complaints error:", error);
       res.status(500).json({ message: "Server error. Please try again." });
     }
   }
