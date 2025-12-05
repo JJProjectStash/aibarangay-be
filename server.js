@@ -31,8 +31,41 @@ import adminRoutes from "./routes/admin.js";
 
 const app = express();
 
-// Security headers
-app.use(helmet());
+// Trust proxy - required for rate limiting behind reverse proxies (Render, Heroku, etc.)
+// This allows express-rate-limit to correctly identify users by their real IP
+app.set("trust proxy", 1);
+
+// CORS configuration - MUST be before other middleware to handle preflight requests
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    const allowedOrigins = [
+      process.env.CLIENT_URL || "http://localhost:5173",
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "https://ibarangay.clev.studio",
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+};
+app.use(cors(corsOptions));
+
+// Handle preflight requests for all routes
+app.options("*", cors(corsOptions));
+
+// Security headers (after CORS to not interfere with preflight)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // Response compression
 app.use(compression());
@@ -60,14 +93,6 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
-
-// CORS configuration
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true,
-  })
-);
 
 // Increase request body limits to allow client avatars and larger payloads (e.g., base64 images)
 // Keep a reasonable limit to prevent abuse. Adjust as needed.
