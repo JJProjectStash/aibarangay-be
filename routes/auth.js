@@ -156,20 +156,76 @@ router.post(
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      // Check password
-      const isMatch = await user.matchPassword(password);
+      // Check if user is locked out
+      if (user.isLockedOut()) {
+        const remainingSeconds = user.getRemainingLockoutTime();
+        const remainingMinutes = Math.ceil(remainingSeconds / 60);
 
-      if (!isMatch) {
         await createAuditLog(
           user._id,
           "USER_LOGIN",
           "Auth System",
-          { email: user.email, reason: "Invalid password" },
+          { email: user.email, reason: "Account locked out" },
           "failure",
           req.ip
         );
-        return res.status(401).json({ message: "Invalid email or password" });
+
+        return res.status(423).json({
+          message: `Account temporarily locked. Try again in ${remainingMinutes} minute${
+            remainingMinutes !== 1 ? "s" : ""
+          }.`,
+          lockoutUntil: user.lockoutUntil,
+          isLockedOut: true,
+          remainingSeconds,
+        });
       }
+
+      // Check password
+      const isMatch = await user.matchPassword(password);
+
+      if (!isMatch) {
+        await user.incrementLoginAttempts();
+
+        const maxAttempts = parseInt(process.env.LOGIN_MAX_ATTEMPTS) || 5;
+        const remainingAttempts = Math.max(0, maxAttempts - user.loginAttempts);
+
+        await createAuditLog(
+          user._id,
+          "USER_LOGIN",
+          "Auth System",
+          {
+            email: user.email,
+            reason: "Invalid password",
+            attemptsRemaining: remainingAttempts,
+          },
+          "failure",
+          req.ip
+        );
+
+        // Check if this attempt caused a lockout
+        if (user.isLockedOut()) {
+          const remainingSeconds = user.getRemainingLockoutTime();
+          const remainingMinutes = Math.ceil(remainingSeconds / 60);
+
+          return res.status(423).json({
+            message: `Too many failed attempts. Account locked for ${remainingMinutes} minute${
+              remainingMinutes !== 1 ? "s" : ""
+            }.`,
+            lockoutUntil: user.lockoutUntil,
+            isLockedOut: true,
+            remainingSeconds,
+            remainingAttempts: 0,
+          });
+        }
+
+        return res.status(401).json({
+          message: "Invalid email or password",
+          remainingAttempts,
+        });
+      }
+
+      // Reset login attempts on successful login
+      await user.resetLoginAttempts();
 
       await createAuditLog(
         user._id,
