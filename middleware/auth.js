@@ -50,3 +50,29 @@ export const authorize = (...roles) => {
     next();
   };
 };
+
+/**
+ * Middleware to restrict access to residents only
+ * Used for creating complaints and service requests
+ */
+export const residentOnly = (req, res, next) => {
+  if (req.user.role !== "resident") {
+    return res.status(403).json({
+      message:
+        "Only residents can submit requests. Staff and admins can only manage existing requests.",
+    });
+  }
+  next();
+};
+
+/**
+ * Middleware to restrict access to staff or admin only
+ */
+export const staffOrAdmin = (req, res, next) => {
+  if (!["staff", "admin"].includes(req.user.role)) {
+    return res.status(403).json({
+      message: "Only staff and admin can perform this action",
+    });
+  }
+  next();
+};

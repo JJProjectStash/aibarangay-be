@@ -2,7 +2,7 @@ import express from "express";
 import { body, validationResult } from "express-validator";
 import ServiceRequest from "../models/ServiceRequest.js";
 import Notification from "../models/Notification.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { protect, authorize, residentOnly } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
 import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 
@@ -90,10 +90,11 @@ router.get("/", protect, async (req, res) => {
 
 // @route   POST /api/services
 // @desc    Create a new service request
-// @access  Private
+// @access  Private (Residents only)
 router.post(
   "/",
   protect,
+  residentOnly,
   [
     body("requestType")
       .notEmpty()

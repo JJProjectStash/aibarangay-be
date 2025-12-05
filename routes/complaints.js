@@ -2,7 +2,7 @@ import express from "express";
 import { body, validationResult } from "express-validator";
 import Complaint from "../models/Complaint.js";
 import Notification from "../models/Notification.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { protect, authorize, residentOnly } from "../middleware/auth.js";
 import createAuditLog from "../utils/createAuditLog.js";
 import { notifyAdminsAndStaff } from "../utils/createNotification.js";
 
@@ -97,10 +97,11 @@ router.get("/", protect, async (req, res) => {
 
 // @route   POST /api/complaints
 // @desc    Create a new complaint
-// @access  Private
+// @access  Private (Residents only)
 router.post(
   "/",
   protect,
+  residentOnly,
   [
     body("title")
       .notEmpty()
