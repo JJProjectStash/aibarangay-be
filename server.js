@@ -9,12 +9,15 @@ import mongoose from "mongoose";
 import connectDB from "./config/db.js";
 import errorHandler from "./middleware/errorHandler.js";
 import timeout from "./middleware/timeout.js";
+import { initScheduledJobs } from "./utils/scheduledJobs.js";
 
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database and initialize scheduled jobs
+connectDB().then(() => {
+  initScheduledJobs();
+});
 
 // Route imports
 import authRoutes from "./routes/auth.js";
