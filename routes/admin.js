@@ -145,17 +145,240 @@ router.delete("/users/:id", protect, authorize("admin"), async (req, res) => {
 // ========== AUDIT LOGS ==========
 
 // @route   GET /api/admin/audit-logs
-// @desc    Get all audit logs
+// @desc    Get all audit logs with optional pagination and filtering
 // @access  Private (Admin)
 router.get("/audit-logs", protect, authorize("admin"), async (req, res) => {
   try {
-    const logs = await AuditLog.find()
+    let query = {};
+
+    // Action filter
+    if (req.query.action && req.query.action !== "all") {
+      query.action = new RegExp(req.query.action, "i");
+    }
+
+    // Status filter
+    if (req.query.status && req.query.status !== "all") {
+      query.status = req.query.status;
+    }
+
+    // Search filter (action or details)
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, "i");
+      query.$or = [{ action: searchRegex }, { details: searchRegex }];
+    }
+
+    // Date range filter
+    if (req.query.startDate || req.query.endDate) {
+      query.createdAt = {};
+      if (req.query.startDate) {
+        query.createdAt.$gte = new Date(req.query.startDate);
+      }
+      if (req.query.endDate) {
+        query.createdAt.$lte = new Date(req.query.endDate);
+      }
+    }
+
+    // Check if pagination is requested
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+
+    if (page > 0 && limit > 0) {
+      // Server-side pagination
+      const skip = (page - 1) * limit;
+      const totalItems = await AuditLog.countDocuments(query);
+      const totalPages = Math.ceil(totalItems / limit);
+
+      const logs = await AuditLog.find(query)
+        .populate("userId", "firstName lastName email role")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      return res.json({
+        data: logs,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          pageSize: limit,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      });
+    }
+
+    // No pagination - return limited results (backward compatible)
+    const logs = await AuditLog.find(query)
       .populate("userId", "firstName lastName email role")
       .sort({ createdAt: -1 })
       .limit(100);
 
     res.json(logs);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/admin/audit-logs/export
+// @desc    Export audit logs as CSV
+// @access  Private (Admin)
+router.get(
+  "/audit-logs/export",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      let query = {};
+
+      // Action filter
+      if (req.query.action && req.query.action !== "all") {
+        query.action = new RegExp(req.query.action, "i");
+      }
+
+      // Status filter
+      if (req.query.status && req.query.status !== "all") {
+        query.status = req.query.status;
+      }
+
+      // Date range filter
+      if (req.query.startDate || req.query.endDate) {
+        query.createdAt = {};
+        if (req.query.startDate) {
+          query.createdAt.$gte = new Date(req.query.startDate);
+        }
+        if (req.query.endDate) {
+          query.createdAt.$lte = new Date(req.query.endDate);
+        }
+      }
+
+      const logs = await AuditLog.find(query)
+        .populate("userId", "firstName lastName email role")
+        .sort({ createdAt: -1 });
+
+      const format = req.query.format || "csv";
+
+      if (format === "csv") {
+        // Generate CSV
+        const headers = [
+          "ID",
+          "Action",
+          "Details",
+          "Status",
+          "User",
+          "Email",
+          "Role",
+          "IP Address",
+          "Timestamp",
+        ];
+
+        const rows = logs.map((log) => [
+          log._id.toString(),
+          log.action || "",
+          `"${(log.details || "").replace(/"/g, '""')}"`,
+          log.status || "",
+          log.userId ? `${log.userId.firstName} ${log.userId.lastName}` : "",
+          log.userId?.email || "",
+          log.userId?.role || "",
+          log.ipAddress || "",
+          log.createdAt ? new Date(log.createdAt).toISOString() : "",
+        ]);
+
+        const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+          "\n"
+        );
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="audit-logs-export-${Date.now()}.csv"`
+        );
+        return res.send(csv);
+      }
+
+      // JSON format
+      res.json(logs);
+    } catch (error) {
+      console.error("Export audit logs error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+// @route   GET /api/admin/users/export
+// @desc    Export users as CSV
+// @access  Private (Admin)
+router.get("/users/export", protect, authorize("admin"), async (req, res) => {
+  try {
+    let query = {};
+
+    // Role filter
+    if (req.query.role && req.query.role !== "all") {
+      query.role = req.query.role;
+    }
+
+    // Verification status filter
+    if (req.query.isVerified !== undefined) {
+      query.isVerified = req.query.isVerified === "true";
+    }
+
+    // Search filter
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, "i");
+      query.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
+      ];
+    }
+
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    const format = req.query.format || "csv";
+
+    if (format === "csv") {
+      // Generate CSV
+      const headers = [
+        "ID",
+        "First Name",
+        "Last Name",
+        "Email",
+        "Role",
+        "Verified",
+        "Phone Number",
+        "Address",
+        "Created At",
+      ];
+
+      const rows = users.map((user) => [
+        user._id.toString(),
+        `"${(user.firstName || "").replace(/"/g, '""')}"`,
+        `"${(user.lastName || "").replace(/"/g, '""')}"`,
+        user.email || "",
+        user.role || "",
+        user.isVerified ? "Yes" : "No",
+        user.phoneNumber || "",
+        `"${(user.address || "").replace(/"/g, '""')}"`,
+        user.createdAt ? new Date(user.createdAt).toISOString() : "",
+      ]);
+
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+        "\n"
+      );
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="users-export-${Date.now()}.csv"`
+      );
+      return res.send(csv);
+    }
+
+    // JSON format
+    res.json(users);
+  } catch (error) {
+    console.error("Export users error:", error);
     res.status(500).json({ message: error.message });
   }
 });
