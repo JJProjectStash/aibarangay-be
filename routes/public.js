@@ -4,13 +4,14 @@ import Announcement from "../models/Announcement.js";
 import NewsItem from "../models/NewsItem.js";
 import Official from "../models/Official.js";
 import SiteSettings from "../models/SiteSettings.js";
+import cacheMiddleware from "../middleware/cache.js";
 
 const router = express.Router();
 
 // @route   GET /api/public/events
 // @desc    Get all events (public)
 // @access  Public
-router.get("/events", async (req, res) => {
+router.get("/events", cacheMiddleware(60), async (req, res) => {
   try {
     const events = await Event.find()
       .populate("organizerId", "firstName lastName")
@@ -32,7 +33,7 @@ router.get("/events", async (req, res) => {
 // @route   GET /api/public/announcements
 // @desc    Get all announcements (public)
 // @access  Public
-router.get("/announcements", async (req, res) => {
+router.get("/announcements", cacheMiddleware(60), async (req, res) => {
   try {
     const announcements = await Announcement.find({ isPublished: true }).sort({
       isPinned: -1,
@@ -48,7 +49,7 @@ router.get("/announcements", async (req, res) => {
 // @route   GET /api/public/news
 // @desc    Get all news items (public)
 // @access  Public
-router.get("/news", async (req, res) => {
+router.get("/news", cacheMiddleware(60), async (req, res) => {
   try {
     const news = await NewsItem.find().sort({ createdAt: -1 });
     res.json(news);
@@ -60,7 +61,7 @@ router.get("/news", async (req, res) => {
 // @route   GET /api/public/officials
 // @desc    Get all officials (public)
 // @access  Public
-router.get("/officials", async (req, res) => {
+router.get("/officials", cacheMiddleware(300), async (req, res) => {
   try {
     const officials = await Official.find().sort({ createdAt: 1 });
     res.json(officials);
@@ -72,7 +73,7 @@ router.get("/officials", async (req, res) => {
 // @route   GET /api/public/settings
 // @desc    Get site settings (public)
 // @access  Public
-router.get("/settings", async (req, res) => {
+router.get("/settings", cacheMiddleware(300), async (req, res) => {
   try {
     let settings = await SiteSettings.findOne();
 

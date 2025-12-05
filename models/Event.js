@@ -56,6 +56,12 @@ const eventSchema = new mongoose.Schema(
   }
 );
 
+// Add indexes for frequent queries
+eventSchema.index({ eventDate: 1 });
+eventSchema.index({ status: 1 });
+eventSchema.index({ organizerId: 1 });
+eventSchema.index({ category: 1 });
+
 const Event = mongoose.model("Event", eventSchema);
 
 export default Event;
