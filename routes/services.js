@@ -309,6 +309,8 @@ router.put(
               : req.body.status === "rejected"
               ? "error"
               : "info",
+          relatedType: "service",
+          relatedId: service._id,
         });
       }
 
@@ -416,6 +418,8 @@ router.post(
                   : status === "rejected"
                   ? "error"
                   : "info",
+              relatedType: "service",
+              relatedId: service._id,
             });
           }
 

@@ -71,9 +71,9 @@ router.get("/officials", cacheMiddleware(300), async (req, res) => {
 });
 
 // @route   GET /api/public/settings
-// @desc    Get site settings (public)
+// @desc    Get site settings (public) - No caching for immediate updates
 // @access  Public
-router.get("/settings", cacheMiddleware(300), async (req, res) => {
+router.get("/settings", async (req, res) => {
   try {
     let settings = await SiteSettings.findOne();
 

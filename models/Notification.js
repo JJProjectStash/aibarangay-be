@@ -24,6 +24,13 @@ const notificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    relatedType: {
+      type: String,
+      enum: ["complaint", "service", "event", "announcement"],
+    },
+    relatedId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
   },
   {
     timestamps: true,

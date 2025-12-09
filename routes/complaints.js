@@ -266,6 +266,8 @@ router.put(
               : req.body.status === "closed"
               ? "info"
               : "warning",
+          relatedType: "complaint",
+          relatedId: complaint._id,
         });
       }
 
@@ -361,6 +363,8 @@ router.post(
                   : status === "closed"
                   ? "info"
                   : "warning",
+              relatedType: "complaint",
+              relatedId: complaint._id,
             });
           }
 
